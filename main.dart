@@ -1,20 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Değişiklik 1: Shared Preferences eklendi
 
-void main() {
+// Tema durumu yöneticisi
+ValueNotifier<ThemeMode> _themeNotifier = ValueNotifier(ThemeMode.light);
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Flutter binding başlatıldı
+  final prefs = await SharedPreferences.getInstance(); // Değişiklik 2: Tercih nesnesi alındı
+  final savedTheme = prefs.getString('themeMode') ?? 'light'; // Tercih varsa al, yoksa "light"
+  _themeNotifier.value = savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light; // Tema uygula
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Ayarlar',
-      theme: ThemeData(
-        scaffoldBackgroundColor: Colors.black,
-        colorScheme: ColorScheme.dark(),
-        useMaterial3: true,
-      ),
-      home: AyarlarSayfasi(),
+    return ValueListenableBuilder(
+      valueListenable: _themeNotifier,
+      builder: (context, ThemeMode currentMode, _) {
+        return MaterialApp(
+          title: 'Ayarlar',
+          theme: ThemeData(
+            scaffoldBackgroundColor: Colors.white,
+            colorScheme: ColorScheme.light(),
+            useMaterial3: true,
+            primaryColor: Colors.blue,
+            appBarTheme: AppBarTheme(
+              backgroundColor: const Color.fromARGB(255, 40, 158, 255),
+              foregroundColor: Colors.black,
+            ),
+            textTheme: TextTheme(
+              titleLarge: TextStyle(
+                color: Colors.black,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              bodyMedium: TextStyle(color: Colors.black),
+              titleMedium: TextStyle(color: Colors.grey[700]),
+            ),
+          ),
+          darkTheme: ThemeData(
+            scaffoldBackgroundColor: Colors.black,
+            colorScheme: ColorScheme.dark(),
+            useMaterial3: true,
+            primaryColor: Colors.blue,
+            appBarTheme: AppBarTheme(
+              backgroundColor: Colors.grey[900],
+              foregroundColor: Colors.white,
+            ),
+            textTheme: TextTheme(
+              titleLarge: TextStyle(
+                color: Colors.blue,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              bodyMedium: TextStyle(color: Colors.white),
+              titleMedium: TextStyle(color: Colors.grey),
+            ),
+          ),
+          themeMode: currentMode,
+          home: AyarlarSayfasi(),
+        );
+      },
     );
   }
 }
@@ -25,7 +72,6 @@ class AyarlarSayfasi extends StatefulWidget {
 }
 
 class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
-  bool koytema = true;
   bool bildirimler = true;
   bool sesliUyari = true;
   bool titresim = true;
@@ -34,30 +80,32 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
 
   @override
   Widget build(BuildContext context) {
+    bool koyuTemaAktifMi = _themeNotifier.value == ThemeMode.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Ayarlar"),
-        backgroundColor: Colors.grey[900],
-      ),
+      appBar: AppBar(title: Text("Ayarlar")),
       body: ListView(
         children: [
           _bolumBaslik("Görünüm Ayarları"),
           SwitchListTile(
-            title: Text("Koyu Tema", style: TextStyle(color: Colors.white)),
-            subtitle: Text("Koyu arka plan, açık yazı", style: TextStyle(color: Colors.grey)),
-            value: koytema,
-            onChanged: (bool value) {
+            title: Text("Koyu Tema"),
+            subtitle: Text("Koyu arka plan, açık yazı"),
+            value: koyuTemaAktifMi,
+            onChanged: (bool value) async {
               setState(() {
-                koytema = value;
+                _themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
               });
-            },
-            activeColor: Colors.blue,
-          ),
 
+              // Değişiklik 3: Tema tercihini kaydet
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('themeMode', value ? 'dark' : 'light');
+            },
+            activeColor: Theme.of(context).primaryColor,
+          ),
           _bolumBaslik("Bildirim Ayarları"),
           SwitchListTile(
-            title: Text("Bildirimler", style: TextStyle(color: Colors.white)),
-            subtitle: Text("Tüm bildirimleri aç/kapat", style: TextStyle(color: Colors.grey)),
+            title: Text("Bildirimler"),
+            subtitle: Text("Tüm bildirimleri aç/kapat"),
             value: bildirimler,
             onChanged: (bool value) {
               setState(() {
@@ -68,10 +116,10 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
                 }
               });
             },
-            activeColor: Colors.blue,
+            activeColor: Theme.of(context).primaryColor,
           ),
           SwitchListTile(
-            title: Text("Sesli Uyarı", style: TextStyle(color: Colors.white)),
+            title: Text("Sesli Uyarı"),
             value: sesliUyari,
             onChanged: bildirimler
                 ? (bool? value) {
@@ -80,10 +128,10 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
                     });
                   }
                 : null,
-            activeColor: Colors.blue,
+            activeColor: Theme.of(context).primaryColor,
           ),
           SwitchListTile(
-            title: Text("Titreşim", style: TextStyle(color: Colors.white)),
+            title: Text("Titreşim"),
             value: titresim,
             onChanged: bildirimler
                 ? (bool? value) {
@@ -92,68 +140,42 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
                     });
                   }
                 : null,
-            activeColor: Colors.blue,
+            activeColor: Theme.of(context).primaryColor,
           ),
-          ListTile(
-            title: Text("Bildirim Zamanlaması", style: TextStyle(color: Colors.white)),
-            subtitle: Text("Sayaç dolmadan önce bildirim süresi", style: TextStyle(color: Colors.grey)),
-            trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey),
-            onTap: bildirimler
-                ? () {
-                    print("Bildirim zamanlaması ayarları");
-                  }
-                : null,
-            enabled: bildirimler,
-          ),
-
           _bolumBaslik("Sayaç Görünüm Ayarları"),
           ListTile(
-            title: Text("Görünüm Tipi", style: TextStyle(color: Colors.white)),
-            subtitle: Text(gorunum, style: TextStyle(color: Colors.grey)),
-            trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey),
-            onTap: () {
-              _gorunumTipiSec();
-            },
+            title: Text("Görünüm Tipi"),
+            subtitle: Text(gorunum),
+            trailing: Icon(Icons.arrow_forward_ios),
+            onTap: _gorunumTipiSec,
           ),
           ListTile(
-            title: Text("Sıralama", style: TextStyle(color: Colors.white)),
-            subtitle: Text(siralama, style: TextStyle(color: Colors.grey)),
-            trailing: Icon(Icons.arrow_forward_ios, color: Colors.grey),
-            onTap: () {
-              _siralamaSec();
-            },
+            title: Text("Sıralama"),
+            subtitle: Text(siralama),
+            trailing: Icon(Icons.arrow_forward_ios),
+            onTap: _siralamaSec,
           ),
-
           _bolumBaslik("Veri Yönetimi"),
           ListTile(
             title: Text("Tüm Verileri Temizle", style: TextStyle(color: Colors.red)),
             leading: Icon(Icons.delete_forever, color: Colors.red),
-            onTap: () {
-              _veriTemizlemeOnay();
-            },
+            onTap: _veriTemizlemeOnay,
           ),
-
           _bolumBaslik("Hakkında"),
           ListTile(
-            title: Text("Uygulama Sürümü", style: TextStyle(color: Colors.white)),
-            subtitle: Text("1.0.0", style: TextStyle(color: Colors.grey)),
-            onTap: () {
-              print("Sürüm bilgileri");
-            },
+            title: Text("Uygulama Sürümü"),
+            subtitle: Text("1.0.0"),
+            onTap: () => print("Sürüm bilgileri"),
           ),
           ListTile(
-            title: Text("Geri Bildirim Gönder", style: TextStyle(color: Colors.white)),
-            leading: Icon(Icons.feedback, color: Colors.blue),
-            onTap: () {
-              print("Geri bildirim formu");
-            },
+            title: Text("Geri Bildirim Gönder"),
+            leading: Icon(Icons.feedback, color: Theme.of(context).primaryColor),
+            onTap: () => print("Geri bildirim formu"),
           ),
           ListTile(
-            title: Text("Geliştirici", style: TextStyle(color: Colors.white)),
-            subtitle: Text("Muhammet kırmızıkıoç", style: TextStyle(color: Colors.grey)),
-            onTap: () {
-              print("Geliştirici bilgileri");
-            },
+            title: Text("Geliştirici"),
+            subtitle: Text("Muhammet Kırmızıkoç"),
+            onTap: () => print("Geliştirici bilgileri"),
           ),
           SizedBox(height: 50),
         ],
@@ -164,56 +186,35 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
   Widget _bolumBaslik(String baslik) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        baslik,
-        style: TextStyle(
-          color: Colors.blue,
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: Text(baslik, style: Theme.of(context).textTheme.titleLarge),
     );
   }
 
   void _siralamaSec() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: Text("Sıralama Seç"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                title: Text("Bitiş Tarihine Göre"),
-                onTap: () {
-                  setState(() {
-                    siralama = "Bitiş Tarihine Göre";
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: Text("İsme Göre (A-Z)"),
-                onTap: () {
-                  setState(() {
-                    siralama = "İsme Göre (A-Z)";
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: Text("Eklenme Tarihine Göre"),
-                onTap: () {
-                  setState(() {
-                    siralama = "Eklenme Tarihine Göre";
-                  });
-                  Navigator.pop(context);
-                },
-              ),
+              _secenek("Bitiş Tarihine Göre"),
+              _secenek("İsme Göre (A-Z)"),
+              _secenek("Eklenme Tarihine Göre"),
             ],
           ),
         );
+      },
+    );
+  }
+
+  Widget _secenek(String secenek) {
+    return ListTile(
+      title: Text(secenek),
+      onTap: () {
+        setState(() => siralama = secenek);
+        Navigator.pop(context);
       },
     );
   }
@@ -221,39 +222,15 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
   void _gorunumTipiSec() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: Text("Görünüm Tipi Seç"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                title: Text("Liste"),
-                onTap: () {
-                  setState(() {
-                    gorunum = "Liste";
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: Text("Grid"),
-                onTap: () {
-                  setState(() {
-                    gorunum = "Grid";
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: Text("Kart"),
-                onTap: () {
-                  setState(() {
-                    gorunum = "Kart";
-                  });
-                  Navigator.pop(context);
-                },
-              ),
+              _gorunumSec("Liste"),
+              _gorunumSec("Grid"),
+              _gorunumSec("Kart"),
             ],
           ),
         );
@@ -261,19 +238,27 @@ class _AyarlarSayfasiState extends State<AyarlarSayfasi> {
     );
   }
 
+  Widget _gorunumSec(String tip) {
+    return ListTile(
+      title: Text(tip),
+      onTap: () {
+        setState(() => gorunum = tip);
+        Navigator.pop(context);
+      },
+    );
+  }
+
   void _veriTemizlemeOnay() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: Text("Verileri Temizle"),
           content: Text("Tüm sayaçlar ve ayarlar silinecek. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?"),
           actions: [
             TextButton(
               child: Text("İptal"),
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
             ),
             TextButton(
               child: Text("Temizle", style: TextStyle(color: Colors.red)),
